@@ -13,11 +13,11 @@ import requests
 from requests.auth import HTTPBasicAuth
 from sshtunnel import HandlerSSHTunnelForwarderError
 
-from alpha.advda.lib.helpers import Helper
-from alpha.advda.lib.anomaly_base import AnomalyBase
+# from alpha.advda.lib.helpers import Helper
+# from alpha.advda.lib.anomaly_base import AnomalyBase
 
-# from helpers import Helper
-# from anomaly_base import AnomalyBase
+from helpers import Helper
+from anomaly_base import AnomalyBase
 residual = 1.0e-1
 MIN_PERCENTAGE = 0.2
 ABS_COS_ANGLE_DIFF = 0.75
@@ -56,6 +56,7 @@ def _anomaly_drives_by_field(subDf, field):
     capacities = subDf["CAPACITY"].unique()
     capacities.sort()
     for capacity in  capacities:
+       
         driveInfo = _anomaly_drives_by_field_per_capacity(subDf[subDf["CAPACITY"]==capacity], field)
         # driveInfo = {"": [], "anomaly_drives": []}
         if driveInfo and driveInfo.get("anomaly_drives"):
@@ -131,7 +132,7 @@ def _anomaly_drives_detection_helper(slopeDF):
             first -=1
 
     if not res and sd > 0.2 and driveSlopes:
-        res.append(driveSlopes[0][1])
+        res.append(driveSlopes[-1][1])
     elif not res:
         i =  len(driveSlopes) - 1
         while i >= 0 and driveSlopes[i][0]>= mean + 2.5*sd:
@@ -285,7 +286,7 @@ if __name__ == '__main__':
     
     t0 = time.time()
     # testingIDs = ["18-2377-11690", "18-2245-11001"]
-    for tuid in ["18-2584-12348"]:
+    for tuid in ["18-2704-12649"]:
         print(tuid)
         # alarm = AnomalyLinearity(tuid, collections=["COL_IDENTIFY_DEVICE_DATA"])
         alarm = AnomalyGrowthRate(tuid, collection="COL_HYNIX_EXTENDED_SMART_DEFENSE_ALGORITHM",fields=["DA_HRR"])
@@ -295,8 +296,7 @@ if __name__ == '__main__':
         abnormalDrives = alarm.anomaly_drives_detection()   
         if abnormalDrives:
             print(f"Insert {abnormalDrives} to database")
-            print("AAAAAAAAAAAAAAAAAA")
-            # alarm.insert_anomaly_data_to_db(abnormalDrives)
+            alarm.insert_anomaly_data_to_db(abnormalDrives)
     t1 = time.time()
     
     # Helper.close_db_session()
