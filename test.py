@@ -80,8 +80,8 @@ def _anomaly_drives_by_field_per_capacity(subDf, field):
     scaler = preprocessing.StandardScaler().fit(yy)
     y_scaled = np.squeeze(scaler.transform(yy))
     
-    subDf.loc[:, f"NORMALIZED_{field}"] = y_scaled
-    subDf = subDf.assign(NORMALIZED_EVENT_DATE_TIMESTAMP = X_scaled)
+    subDf[f"NORMALIZED_{field}"] = y_scaled
+    subDf[f"NORMALIZED_EVENT_DATE_TIMESTAMP"] = X_scaled
     
     driveIDs = subDf["DRIVE_ID"].unique()
     
@@ -90,7 +90,7 @@ def _anomaly_drives_by_field_per_capacity(subDf, field):
     for drive_id in driveIDs:
         coef, intercept = _get_slope(subDf, field, drive_id)        
         slopeDF = slopeDF.append({'drive_id': drive_id, 'capacity': subDf[subDf['DRIVE_ID']==drive_id]['CAPACITY'].reset_index(drop=True)[0], 'slope': np.arctan(coef)}, ignore_index=True)
-        
+    
     anomalyDrives, normalDrives = _anomaly_drives_detection_helper(slopeDF)
     return {"anomaly_drives": [[drive, None, None] for drive in anomalyDrives], "normal_drives": normalDrives}
     
@@ -101,7 +101,6 @@ def _anomaly_drives_detection_helper(slopeDF):
     sd = np.std(slopes, axis=0)
     if sd <= 0.1:
         return [], []
-
     driveSlopes = [ [row['slope'], row['drive_id']] for _, row in slopeDF.iterrows()]
     driveSlopes.sort()
     last = len(driveSlopes) - 1
@@ -129,14 +128,7 @@ def _anomaly_drives_detection_helper(slopeDF):
         while first >0:
             res.append(driveSlopes[first][1])
             first -=1
-
-    if not res and sd > 0.2 and driveSlopes:
-        res.append(driveSlopes[0][1])
-    elif not res:
-        i =  len(driveSlopes) - 1
-        while i >= 0 and driveSlopes[i][0]>= mean + 2.5*sd:
-            res.append(driveSlopes[i][1])
-            i = i - 1
+    
     return res, list(set(slopeDF['drive_id'].to_list()) - set(res))
 
 
@@ -149,7 +141,7 @@ class AnomalyGrowthRate(AnomalyBase):
             fields = self.helper.get_fields_from_collection(collection,  {'$and': [{'11': {'$in': [tuid]}}]})
             self.fields = [field.split()[0] for field in fields]
         else:
-            self.fields = fields if isinstance(fields, list) else [fields]
+            self.fields = fields
         
     
     def anomaly_drives_detection(self):
@@ -186,7 +178,7 @@ class AnomalyGrowthRate(AnomalyBase):
             # if self.collection:
             #     tmp = self._anomaly_drives_detection_helper(self.collection, commonDF, whereClause, self.helper)
             #     if tmp and tmp != {}:                
-            #         alarmEvents[self.collection] = tmp  
+            #         alarmEvents[self.collection] = tmp   
             
             for field in self.helper.decode_name_to_id(self.fields).values():
                 queryFields[field] = 1
@@ -195,7 +187,7 @@ class AnomalyGrowthRate(AnomalyBase):
             if self.collection:
                 tmp = self._anomaly_drives_detection_helper(self.collection, commonDF, whereClause, queryFields, self.helper)
                 if tmp and tmp != {}:                
-                    alarmEvents[self.collection] = tmp   
+                    alarmEvents[self.collection] = tmp  
         except Exception as e:
             print(f"ERROR: {e}")
         # helper.paramDB.close()
@@ -257,14 +249,11 @@ class AnomalyGrowthRate(AnomalyBase):
             L.append((df[features+[field, "CAPACITY", "DRIVE_ID"]], field))
         
         
-        print(f"Pool len: {len(L)}")       
-        # for l in L:
-        #     _anomaly_drives_by_field(l[0], l[1])
-
+        print(f"Pool len: {len(L)}")
+        
         if len(L) > 0:
             with Pool(8) as pool:
                 results = pool.starmap(_anomaly_drives_by_field, L)
-
             for res in results:
                 if res and res != {}:               
                     # alarm_list.update({"anomaly_drives": res[0], "normal_drives": res[1].tolist()})
